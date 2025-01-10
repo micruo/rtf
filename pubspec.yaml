@@ -1,5 +1,5 @@
 name: rtf
-description: "A new Flutter package project."
+description: "A library to build an rtf document"
 version: 0.0.1
 homepage: https://github.com/micruo/rtf
 
