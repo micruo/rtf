@@ -1,25 +1,32 @@
 import 'widget.dart';
 import 'constant.dart';
 
-enum _Border { top, left, right, bottom, horizontal, vertical }
-
-final String _nullBorder = TableBorder(color: Color.white).getBorder();
+enum _Border { top, left, bottom, right, horizontal, vertical }
 
 /// Define the border type
 class TableBorder {
-  final int _color;
+  final Color? _color;
   final bool _bDash;
   TableBorder({bool? dash, Color? color})
       : _bDash = dash ?? false,
-        _color = (color?.index ?? 0) + (color != null ? 1 : 0);
+        _color = color;
+  TableBorder.standard()
+      : _color = Color.black,
+        _bDash = false;
+  TableBorder.none()
+      : _color = null,
+        _bDash = false;
   String getBorder() {
+    if (_color == null) {
+      return '\\brdrn ';
+    }
     StringBuffer sb = StringBuffer("\\brdrs\\brsp18\\brdrw12");
     if (_bDash) {
       sb.write("\\brdrdashsm");
     }
     sb
       ..write("\\brdrcf")
-      ..write(_color)
+      ..write(_color.index + 1)
       ..write(' ');
     return sb.toString();
   }
@@ -48,7 +55,7 @@ enum Shade {
 /// Define the Widget to represent a Table
 class Table extends Widget {
   final bool keep = true;
-  final List<TableBorder?> _borders;
+  final List<TableBorder> _borders;
   final List<int>? _colWidths;
   final List<Widget> _headers;
   final List<List<Widget>> _rows;
@@ -57,27 +64,26 @@ class Table extends Widget {
   final Shade? _oddShade;
   final Shade? _pairShade;
   final int? _height;
+
   /// Create a Table widget
-  /// 
+  ///
   /// [_headers] is a List of Widget to display into the header
-  /// 
+  ///
   /// [_rows] is a List of List of Widget to display into each row
-  /// 
+  ///
   /// [_colWidths] contains columns' width
-  /// 
+  ///
   /// [headerShade] is the header's shade
-  /// 
+  ///
   /// [oddShade] is the header's shade for odd rows
-  /// 
+  ///
   /// [pairShade] is the header's shade for pair rows
-  /// 
+  ///
   /// [height] is the optional height for the rows
-  /// 
+  ///
   /// [left], [top], [right], [bottom], [horizontalInside], [verticalInside] are the TableBorder definition for each
   /// side and for internal border
-  Table(
-    this._headers,
-    this._rows,
+  Table(this._headers, this._rows,
       {List<int>? colWidths,
       VAlign? valign,
       Shade? headerShade,
@@ -96,17 +102,24 @@ class Table extends Widget {
         _pairShade = pairShade,
         _height = height,
         _valign = valign ?? VAlign.center,
-        _borders = [left, right, top, bottom, horizontalInside, verticalInside];
+        _borders = [
+          top ?? TableBorder.none(),
+          left ?? TableBorder.none(),
+          bottom ?? TableBorder.none(),
+          right ?? TableBorder.none(),
+          horizontalInside ?? TableBorder.none(),
+          verticalInside ?? TableBorder.none()
+        ];
   @override
   draw(Document doc) {
     write('\\par ');
-    _writeCells(doc, _headers, 0);
+    _writeCells(doc, _headers, 0, -1);
     for (int i = 0; i < _rows.length; i++) {
-      _writeCells(doc, _rows[i], 1 + i % 2);
+      _writeCells(doc, _rows[i], 1 + i, _rows.length);
     }
   }
 
-  void _writeCells(Document doc, List<Widget> c, int type) {
+  void _writeCells(Document doc, List<Widget> c, int type, int max) {
     var page = doc.getPage();
     List<int> colWidths = _colWidths ?? List.filled(_headers.length, (page.availableWidth / _headers.length).round());
     int w = 0;
@@ -126,22 +139,20 @@ class Table extends Widget {
       }
       if (col < _headers.length) {
         for (_Border b in _Border.values.sublist(0, 4)) {
-          TableBorder? bd =
-              _borders[((b == _Border.left && col > 0) || (b == _Border.top && type > 0) ? 4 : 0) + b.index];
-          write('\\clbrdr${b.name[0]}${bd?.getBorder() ?? _nullBorder}');
+          TableBorder bd = _borders[(b == _Border.left && col > 0) ||
+                  (b == _Border.right && col < _headers.length - 1) ||
+                  (b == _Border.top && type > 1) ||
+                  (b == _Border.bottom && type < max)
+              ? (b.index % 2 == 0 ? _Border.horizontal.index : _Border.vertical.index)
+              : b.index];
+          write('\\clbrdr${b.name[0]}${bd.getBorder()}');
         }
         write(_valign._al);
         int? shading;
-        switch (type) {
-          case 0:
-            shading = _headerShade?._sh;
-            break;
-          case 1:
-            shading = _oddShade?._sh;
-            break;
-          case 2:
-            shading = _pairShade?._sh;
-            break;
+        if (type == 0) {
+          shading = _headerShade?._sh;
+        } else {
+          shading = type % 2 == 0 ? _pairShade?._sh : _oddShade?._sh;
         }
         if (shading != null) {
           write("\\clcbpat8\\clshdng$shading");

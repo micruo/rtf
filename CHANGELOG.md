@@ -1,3 +1,3 @@
 ## 0.0.1
 
-* TODO: Describe initial release.
+* Implements a minimal library to produce an RTF document, readable by several word processors

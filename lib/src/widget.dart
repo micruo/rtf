@@ -111,7 +111,7 @@ class Document {
   final List<Widget> _root;
   final List<_Font> _fonts = [];
   final List<String> _mStyles = [];
-  final List<dynamic> _hfValues = List.filled(HF.values.length, null);
+  final List<Widget?> _hfValues = List.filled(HF.values.length, null);
   final bool _interleave;
   final int _orientation;
   final PageFormat _pageFormat;
@@ -156,8 +156,9 @@ class Document {
     return page;
   }
 
-  void addFont(String type, String def) => _fonts.add(_Font(type, def));
-  void setHf(HF what, dynamic value) => _hfValues[what.index] = value;
+  void addFont(String name, String family, String fontName, FontStyle style, double size) =>
+      _fonts.add(_Font(name, family, fontName, style, size));
+  void setHf(HF what, Widget value) => _hfValues[what.index] = value;
   String _text(String str) {
     StringBuffer txt = StringBuffer();
     for (int i = 0; i < str.length; i++) {
@@ -225,11 +226,9 @@ class Document {
 
   void _defineFonts() {
     for (int idx = 0; idx < _fonts.length; idx++) {
-      String name = _fonts[idx]._def.split('-').first;
       write("{\\f$idx");
-      write("\\f$name");
-      write("\\fcharset0\\fprq2 $name;}");
-      /**@todo definire charset */
+      write("\\f${_fonts[idx]._family}");
+      write("\\fcharset0\\fprq2 ${_fonts[idx]._fontName};}");
     }
   }
 
@@ -242,7 +241,7 @@ class Document {
   }
 
   void _defineStyle(_Font f, int index, int lang) {
-    String styleName = f._rtf;
+    String styleName = f._name;
     StringBuffer str = StringBuffer();
     if (styleName != 'Normal') {
       str
@@ -254,9 +253,9 @@ class Document {
     }
     str
       ..write("\\keepn\\nowidctlpar\\widctlpar\\adjustright \\f$index")
-      ..write(f._def.split("-")[1].toLowerCase().contains('bold') ? '\\b' : '\\plain')
+      ..write(f._style == FontStyle.bold ? '\\b' : '\\plain')
       ..write("\\fs")
-      ..write((2 * int.parse(f._def.split("-")[2])).toString())
+      ..write((2 * f._size).floor().toString())
       ..write("\\language$lang");
     _mStyles.add(str.toString());
     str.write(' ');
@@ -282,14 +281,14 @@ class Document {
   }
 
   _Font _setStyle(String font) {
-    int idx = _fonts.indexWhere((e) => e._rtf == font);
+    int idx = _fonts.indexWhere((e) => e._name == font);
     write('\\pard\\plain${_mStyles[idx]}');
     return _fonts[idx];
   }
 
   void _hf(bool bFooter) {
     double l = 10.0 * getPage().availableWidth;
-    List<dynamic> styles = _hfValues.sublist(bFooter ? 3 : 0, 3);
+    List<Widget?> styles = _hfValues.sublist(bFooter ? 3 : 0, 3);
     if (!styles.any((s) => s != null)) {
       return;
     }
@@ -304,27 +303,14 @@ class Document {
         write("\\tab ");
       }
       var s = styles[j];
-      if (s is ByteData) {
-        _insertImage(s);
-      } else if (s is String) {
-        if (s == '%Page') {
-          write(
-              "{\\field{\\*\\fldinst { PAGE }}{\\fldrslt { 1}}}/{\\field{\\*\\fldinst { NUMPAGES    \\* MERGEFORMAT }}{\\fldrslt { 1}}}");
-        } else {
-          write(_text(s));
-        }
+      if (s != null) {
+        s.draw(this);
       }
     }
     write("\\par }}");
-    /*
-    if (bFooter) {
-      endingY = height.toDouble();
-    } else {
-      startingY = height.toDouble();
-    }*/
   }
 
-  void _insertImage(ByteData data, [int? dpi, bool share = true]) {
+  void _insertImage(ByteData data, int dpi, bool share, int? width, int? height) {
     if (share) {
       write("{");
       write("\\*\\shppict ");
@@ -333,14 +319,11 @@ class Document {
     write("\\pict ");
     write("\\pngblip ");
 
-    int width = -1;
-    int height = -1;
-
-    int mult = 1440 ~/ (dpi ?? 72);
-    if (width != -1) {
+    int mult = 1440 ~/ dpi;
+    if (width != null) {
       write("\\picwgoal ${(width * mult)} ");
     }
-    if (height != -1) {
+    if (height != null) {
       write("\\pichgoal${(height * mult)} ");
     }
     for (int i = 0; i < data.buffer.lengthInBytes; i++) {
@@ -362,11 +345,16 @@ class Document {
   }
 }
 
-class _Font {
-  final String _rtf;
-  final String _def;
+enum FontStyle { regular, bold, italic }
 
-  const _Font(this._rtf, this._def);
+class _Font {
+  final String _name;
+  final String _fontName;
+  final FontStyle _style;
+  final double _size;
+  final String _family;
+
+  const _Font(this._name, this._family, this._fontName, this._style, this._size);
 }
 
 /// the Widget class
@@ -374,6 +362,7 @@ abstract class Widget {
   draw(Document doc);
 }
 
+/*
 abstract class _SingleChildWidget extends Widget {
   Widget child;
   _SingleChildWidget({required this.child});
@@ -381,7 +370,7 @@ abstract class _SingleChildWidget extends Widget {
   draw(Document doc) {
     child.draw(doc);
   }
-}
+}*/
 
 abstract class _MultipleChildrenWidget extends Widget {
   List<Widget> children;
@@ -408,11 +397,27 @@ class TextStyle {
         _align = align;
 }
 
-// Widget to insert a new page break
+/// Widget to insert a new page break
 class SkipPage extends Widget {
   @override
   draw(Document doc) {
     write("\\pard\\plain \\page \r\n");
+  }
+}
+
+/// A widget to show page number
+class PageNo extends Widget {
+  /// show 'page number' / 'number of pages'; otherwise, show 'page number' only
+  final bool nofPages;
+  PageNo({this.nofPages = true});
+  @override
+  draw(Document doc) {
+    if (nofPages) {
+      write(
+          "{\\field{\\*\\fldinst { PAGE }}{\\fldrslt { 1}}}/{\\field{\\*\\fldinst { NUMPAGES    \\* MERGEFORMAT }}{\\fldrslt { 1}}}");
+    } else {
+      write("{\\field{\\*\\fldinst { PAGE }}{\\fldrslt { 1}}}");
+    }
   }
 }
 
@@ -461,11 +466,25 @@ class Text extends Widget {
   }
 }
 
+/// Insert an Image
 class Image extends Widget {
+  /// [_data] contains the image data
   final ByteData _data;
-  Image(this._data);
+
+  /// dot per inch
+  final int dpi;
+
+  /// Share image, default is true
+  final bool share;
+
+  /// image's width
+  final int? width;
+
+  /// image's height
+  final int? height;
+  Image(this._data, {this.dpi = 72, this.share = true, this.width, this.height});
   @override
   draw(Document doc) {
-    doc._insertImage(_data);
+    doc._insertImage(_data, dpi, share, width, height);
   }
 }
