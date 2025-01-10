@@ -96,7 +96,8 @@ class Table extends Widget {
       TableBorder? bottom,
       TableBorder? horizontalInside,
       TableBorder? verticalInside})
-      : _colWidths = colWidths,
+      : assert(colWidths == null || colWidths.length == _headers.length),
+        _colWidths = colWidths,
         _headerShade = headerShade,
         _oddShade = oddShade,
         _pairShade = pairShade,
@@ -162,7 +163,9 @@ class Table extends Widget {
     }
     for (int col = 0; col < _headers.length; col++) {
       write("\\intbl{");
-      c[col].draw(doc);
+      if (col < c.length) {
+        c[col].draw(doc);
+      }
       write("\\cell }");
     }
     write("\\intbl{\\row }\\pard\\plain\r\n");
