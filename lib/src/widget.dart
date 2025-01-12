@@ -4,6 +4,9 @@ import 'dart:typed_data';
 
 import 'constant.dart';
 
+const _list = [0, 23, 255];
+const _bullet = [8226, 9702, 9642];
+
 /// Header and footer possible positions
 enum HF { hdLeft, hdCenter, hdRight, ftLeft, ftCenter, ftRight }
 
@@ -61,12 +64,18 @@ class PageFormat {
         marginLeft = marginAll ?? marginLeft,
         marginRight = marginAll ?? marginRight;
 
-  static const PageFormat a3 = PageFormat(29.7 * cm, 42 * cm, marginAll: 2.0 * cm);
-  static const PageFormat a4 = PageFormat(21.0 * cm, 29.7 * cm, marginAll: 2.0 * cm);
-  static const PageFormat a5 = PageFormat(14.8 * cm, 21.0 * cm, marginAll: 2.0 * cm);
-  static const PageFormat a6 = PageFormat(10.5 * cm, 14.8 * cm, marginAll: 1.0 * cm);
-  static const PageFormat letter = PageFormat(8.5 * dot, 11.0 * dot, marginAll: dot);
-  static const PageFormat legal = PageFormat(8.5 * dot, 14.0 * dot, marginAll: dot);
+  static const PageFormat a3 =
+      PageFormat(29.7 * cm, 42 * cm, marginAll: 2.0 * cm);
+  static const PageFormat a4 =
+      PageFormat(21.0 * cm, 29.7 * cm, marginAll: 2.0 * cm);
+  static const PageFormat a5 =
+      PageFormat(14.8 * cm, 21.0 * cm, marginAll: 2.0 * cm);
+  static const PageFormat a6 =
+      PageFormat(10.5 * cm, 14.8 * cm, marginAll: 1.0 * cm);
+  static const PageFormat letter =
+      PageFormat(8.5 * dot, 11.0 * dot, marginAll: dot);
+  static const PageFormat legal =
+      PageFormat(8.5 * dot, 14.0 * dot, marginAll: dot);
 
   PageFormat copyWith(
       {double? width,
@@ -106,7 +115,7 @@ class PageFormat {
   int get hashCode => toString().hashCode;
 }
 
-// RTF Document
+/// RTF Document
 class Document {
   final List<Widget> _root;
   final List<_Font> _fonts = [];
@@ -115,7 +124,10 @@ class Document {
   final bool _interleave;
   final int _orientation;
   final PageFormat _pageFormat;
-  Document(this._root, {PageFormat pageFormat = PageFormat.a4, int orientation = 1, interleave = false})
+  Document(this._root,
+      {PageFormat pageFormat = PageFormat.a4,
+      int orientation = 1,
+      interleave = false})
       : _pageFormat = pageFormat,
         _orientation = orientation,
         _interleave = interleave;
@@ -136,7 +148,7 @@ class Document {
       _defineStyle(_fonts[index], index, lang);
     }
     write("}");
-
+    _defineListTables();
     _defineHeader();
 
     _hf(false);
@@ -156,7 +168,8 @@ class Document {
     return page;
   }
 
-  void addFont(String name, String family, String fontName, FontStyle style, double size) =>
+  void addFont(String name, String family, String fontName, FontStyle style,
+          double size) =>
       _fonts.add(_Font(name, family, fontName, style, size));
   void setHf(HF what, Widget value) => _hfValues[what.index] = value;
   String _text(String str) {
@@ -222,6 +235,42 @@ class Document {
       }
     }
     return txt.toString();
+  }
+
+  void _defineListTables() {
+    write('{\\*\\listtable');
+    for (int i = 1; i <= _list.length; i++) {
+      write('{\\list\\listtemplateid$i\n');
+      for (int lvl = 0; lvl < 8; lvl++) {
+        write(
+            '{\\listlevel\\levelnfc${_list[i - 1]}\\leveljc0\\levelstartat1\\levelfollow${i == 3 ? 2 : 0}{\\leveltext ');
+        //if (i == 1) {
+        switch (i) {
+          case 1:
+            write('\\\'02\\\'0$lvl.;}');
+            break;
+          case 2:
+            write('\\\'01\\u${_bullet[lvl % _bullet.length]};}');
+            break;
+          case 3:
+            write('\\\'00;}');
+            break;
+        }
+        write('{\\levelnumbers${i == 1 ? '\\\'01' : ''};}');
+        if (i == _list.length) {
+          write('\\fi0\\li0}\n');
+        } else {
+          write('\\fi-360\\li${720 + 360 * lvl}}\n');
+        }
+      }
+      write('\\listid$i}');
+    }
+    write('}');
+    write('{\\listoverridetable');
+    for (int i = 1; i <= _list.length; i++) {
+      write('{\\listoverride\\listid$i\\listoverridecount0\\ls$i}');
+    }
+    write('}');
   }
 
   void _defineFonts() {
@@ -293,11 +342,10 @@ class Document {
       return;
     }
     write(bFooter ? "{\\footer " : "{\\header ");
-    // _Font f = _setStyle('Normal');
     // don't round before multiply, otherwise you loose some decimals
-    write("\\pard\\plain \\nowidctlpar\\widctlpar\\tqc\\tx${l.round()}\\tqr\\tx${(2 * l).round()}\\adjustright {");
+    write(
+        "\\pard\\plain \\nowidctlpar\\widctlpar\\tqc\\tx${l.round()}\\tqr\\tx${(2 * l).round()}\\adjustright {");
     write("\\b\\qj ");
-    //int height = int.parse(f._def.split("-")[2]);
     for (int j = 0; j < styles.length; j++) {
       if (j > 0) {
         write("\\tab ");
@@ -310,7 +358,8 @@ class Document {
     write("\\par }}");
   }
 
-  void _insertImage(ByteData data, int dpi, bool share, int? width, int? height) {
+  void _insertImage(
+      ByteData data, int dpi, bool share, int? width, int? height) {
     if (share) {
       write("{");
       write("\\*\\shppict ");
@@ -354,12 +403,13 @@ class _Font {
   final double _size;
   final String _family;
 
-  const _Font(this._name, this._family, this._fontName, this._style, this._size);
+  const _Font(
+      this._name, this._family, this._fontName, this._style, this._size);
 }
 
 /// the Widget class
 abstract class Widget {
-  draw(Document doc);
+  void draw(Document doc);
 }
 
 /*
@@ -367,7 +417,7 @@ abstract class _SingleChildWidget extends Widget {
   Widget child;
   _SingleChildWidget({required this.child});
   @override
-  draw(Document doc) {
+  void draw(Document doc) {
     child.draw(doc);
   }
 }*/
@@ -400,7 +450,7 @@ class TextStyle {
 /// Widget to insert a new page break
 class SkipPage extends Widget {
   @override
-  draw(Document doc) {
+  void draw(Document doc) {
     write("\\pard\\plain \\page \r\n");
   }
 }
@@ -411,7 +461,7 @@ class PageNo extends Widget {
   final bool nofPages;
   PageNo({this.nofPages = true});
   @override
-  draw(Document doc) {
+  void draw(Document doc) {
     if (nofPages) {
       write(
           "{\\field{\\*\\fldinst { PAGE }}{\\fldrslt { 1}}}/{\\field{\\*\\fldinst { NUMPAGES    \\* MERGEFORMAT }}{\\fldrslt { 1}}}");
@@ -421,18 +471,19 @@ class PageNo extends Widget {
   }
 }
 
-// Widget to insert a new line break
+/// Widget to insert a new line break
 class NewLine extends Widget {
   @override
-  draw(Document doc) {
+  void draw(Document doc) {
     write("\\par ");
   }
 }
 
+/// this widget show all its children separated by a newline
 class Column extends _MultipleChildrenWidget {
   Column({required super.children});
   @override
-  draw(Document doc) {
+  void draw(Document doc) {
     for (var c in children) {
       c.draw(doc);
       if (c != children.last) write('\\par ');
@@ -443,30 +494,31 @@ class Column extends _MultipleChildrenWidget {
 class Row extends _MultipleChildrenWidget {
   Row({required super.children});
   @override
-  draw(Document doc) {
+  void draw(Document doc) {
     for (var c in children) {
       c.draw(doc);
     }
   }
 }
 
+/// a Widget to show a Text with its style
 class Text extends Widget {
   final String _txt;
   final TextStyle? _style;
   Text(this._txt, {TextStyle? style}) : _style = style;
 
   @override
-  draw(Document doc) {
+  void draw(Document doc) {
     String a = '';
     if (_style != null) {
       doc._setStyle(_style._style);
       a = _style._align?._al ?? '';
     }
-    write('{\\li0$a${doc._text(_txt)} }');
+    write('{$a${doc._text(_txt)}}');
   }
 }
 
-/// Insert an Image
+/// Widget to show an Image
 class Image extends Widget {
   /// [_data] contains the image data
   final ByteData _data;
@@ -482,9 +534,41 @@ class Image extends Widget {
 
   /// image's height
   final int? height;
-  Image(this._data, {this.dpi = 72, this.share = true, this.width, this.height});
+  Image(this._data,
+      {this.dpi = 72, this.share = true, this.width, this.height});
   @override
-  draw(Document doc) {
+  void draw(Document doc) {
     doc._insertImage(_data, dpi, share, width, height);
+  }
+}
+
+/// Widget to draw a Line
+class Line extends Widget {
+  /// the line's width, in 20th of the available page width
+  final double w;
+  Line([this.w = 1]);
+  @override
+  void draw(Document doc) {
+    double width = doc.getPage().availableWidth;
+    double wd = w * width;
+    double mg = (um * width - wd) / 2;
+    write(
+        "\\pard\\plain {\\shp{\\*\\shpinst\\shpleft${mg.round()}\\shptop180\\shpright${(mg + wd).round()}\\shpbottom180\\shpfhdr0\\shpbxcolumn\\shpbxignore\\shpbypara\\shpbyignore\\shpwr3\\shpwrk0\\shpfblwtxt0\\shpz0\\shplid1028{\\sp{\\sn shapeType}{\\sv 20}}{\\sp{\\sn fFlipH}{\\sv 0}}{\\sp{\\sn fFlipV}{\\sv 0}}{\\sp{\\sn shapePath}{\\sv 4}}{\\sp{\\sn fFillOK}{\\sv 0}}{\\sp{\\sn fFilled}{\\sv 0}}{\\sp{\\sn fArrowheadsOK}{\\sv 1}}{\\sp{\\sn fLayoutInCell}{\\sv 1}}}{\\shprslt{\\*\\do\\dobxcolumn\\dobypara\\dodhgt8192\\dpline\\dpptx0\\dppty0\\dpptx9900\\dppty0\\dpx0\\dpy0\\dpxsize\\dpysize0\\dplinew15\\dplinecor0\\dplinecog0\\dplinecob0}}}");
+  }
+}
+
+/// A widget to show a List
+class Listing extends Widget {
+  final List<Widget> _elements;
+  final bool _numbered;
+  Listing(this._elements, this._numbered);
+  @override
+  void draw(Document doc) {
+    for (int i = 0; i < _elements.length; i++) {
+      String c = _numbered ? '$i.)' : '\\u8226\\\'95';
+      write('{\\listtext\\pard\\plain $c\\tab}\\ilvl0\\ls${_numbered ? 1 : 2}');
+      _elements[i].draw(doc);
+      write('\\par');
+    }
   }
 }
