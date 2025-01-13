@@ -31,14 +31,10 @@ Future<void> main() async {
     rtf.SkipPage(),
     rtf.Text('Third test text'),
   ];
-  rtf.Document doc = rtf.Document(el);
+  ByteData? bd = await _loadImageAsByteData('image.png');
+  rtf.Document doc = rtf.Document(el, hdLeft: rtf.PageNo(), hdCenter : bd == null ? null : rtf.Image(bd));
   doc.addFont('Normal', 'swiss', 'Arial', rtf.FontStyle.regular, 9);
   doc.addFont('heading 1', 'swiss', 'Arial', rtf.FontStyle.bold, 14);
   doc.addFont('heading 2', 'swiss', 'Arial', rtf.FontStyle.bold, 12);
-  ByteData? bd = await _loadImageAsByteData('image.png');
-  if (bd != null) {
-    doc.setHf(rtf.HF.hdCenter, rtf.Image(bd));
-  }
-  doc.setHf(rtf.HF.hdLeft, rtf.PageNo());
   await doc.save(File('result.rtf'));
 }

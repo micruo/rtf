@@ -6,3 +6,9 @@
 
 * Added a Line Widget that show a line
 * Added a Listing Widget that show a list
+
+## 0.0.3
+
+* Added the Section widget that show its children in one or more columns
+* Changed the way to define document header/footer
+* Added some examples

@@ -7,9 +7,13 @@ import 'constant.dart';
 const _list = [0, 23, 255];
 const _bullet = [8226, 9702, 9642];
 
+enum _Status { starting, normal, exit }
+
 /// Header and footer possible positions
+@Deprecated('use hdLeft, hdCenter, hdRight, ftLeft, ftCenter, ftRight in Document constructor')
 enum HF { hdLeft, hdCenter, hdRight, ftLeft, ftCenter, ftRight }
 
+/// Color that can be used as border color in a Table
 enum Color {
   black(0xff000000),
   blue(0xff0000ff),
@@ -44,6 +48,7 @@ enum Color {
   }
 }
 
+/// Define the format of all the document pages
 class PageFormat {
   final double width;
   final double height;
@@ -117,20 +122,40 @@ class PageFormat {
 
 /// RTF Document
 class Document {
-  final List<Widget> _root;
+  /// the widgets list
+  final List<Widget> _elements;
   final List<_Font> _fonts = [];
   final List<String> _mStyles = [];
-  final List<Widget?> _hfValues = List.filled(HF.values.length, null);
+  final List<Widget?> _hfValues;
   final bool _interleave;
   final int _orientation;
   final PageFormat _pageFormat;
-  Document(this._root,
+  _Status _status = _Status.starting;
+  final List<Section> _sections = [];
+  Document(this._elements,
       {PageFormat pageFormat = PageFormat.a4,
       int orientation = 1,
-      interleave = false})
+      bool interleave = false,
+      Widget? hdLeft, Widget? hdCenter, Widget? hdRight, Widget? ftLeft, Widget? ftCenter, Widget? ftRight})
       : _pageFormat = pageFormat,
         _orientation = orientation,
-        _interleave = interleave;
+        _interleave = interleave, 
+        _hfValues = [hdLeft, hdCenter, hdRight, ftLeft, ftCenter, ftRight];
+  void _newWidget() {
+    if (_status == _Status.exit) {
+      Section? s = _sections.lastOrNull;
+      _newSection(s?._nCols ?? 1, s?._spCol ?? 36);
+    }
+    _status = _Status.normal;
+  }
+
+  void _newSection(int nCols, int spCol) {
+    if (_status != _Status.starting) write('\\sect');
+    _status = _Status.normal;
+    var l = um * spCol;
+    write('\\cols$nCols\\colsx$l\r\n');
+  }
+
   Future<void> save(File f, {int charset = 1252, int lang = 1040}) async {
     out = f.openWrite(encoding: latin1);
     write("{\\rtf1\\ansi\\ansicpg");
@@ -153,13 +178,14 @@ class Document {
 
     _hf(false);
     _hf(true);
-    for (var r in _root) {
+    for (var r in _elements) {
       r.draw(this);
     }
     write("\\pard}\r\n");
     await out.close();
   }
 
+  /// returns the current PageFormat
   PageFormat getPage() {
     var page = _pageFormat;
     if (_orientation == 0) {
@@ -168,9 +194,13 @@ class Document {
     return page;
   }
 
+  /// add a new Font to the fonts list
   void addFont(String name, String family, String fontName, FontStyle style,
           double size) =>
       _fonts.add(_Font(name, family, fontName, style, size));
+  /// add an element to the header or footer
+  /// Warning: if an Image widget will be added and its height is too big, an invalid document could be generated
+  @Deprecated('use hdLeft, hdCenter, hdRight, ftLeft, ftCenter, ftRight in Document constructor')
   void setHf(HF what, Widget value) => _hfValues[what.index] = value;
   String _text(String str) {
     StringBuffer txt = StringBuffer();
@@ -323,7 +353,7 @@ class Document {
     write("\\sectd ");
     write("\\linex0");
     write("\\headery500");
-    if (_hfValues[HF.ftLeft.index] != null) {
+    if(_hfValues.sublist(3).where((element) => element != null).isNotEmpty) {
       write("\\footery600");
     }
     write("\\sectdefaultcl \\pard\\plain ");
@@ -394,6 +424,7 @@ class Document {
   }
 }
 
+/// font's variation
 enum FontStyle { regular, bold, italic }
 
 class _Font {
@@ -423,7 +454,8 @@ abstract class _SingleChildWidget extends Widget {
 }*/
 
 abstract class _MultipleChildrenWidget extends Widget {
-  List<Widget> children;
+  /// the children widgets list
+  final List<Widget> children;
   _MultipleChildrenWidget({required this.children});
 }
 
@@ -475,6 +507,7 @@ class PageNo extends Widget {
 class NewLine extends Widget {
   @override
   void draw(Document doc) {
+    doc._newWidget();
     write("\\par ");
   }
 }
@@ -486,11 +519,12 @@ class Column extends _MultipleChildrenWidget {
   void draw(Document doc) {
     for (var c in children) {
       c.draw(doc);
-      if (c != children.last) write('\\par ');
+      write('\\par ');
     }
   }
 }
 
+/// this widget show all its children
 class Row extends _MultipleChildrenWidget {
   Row({required super.children});
   @override
@@ -498,6 +532,22 @@ class Row extends _MultipleChildrenWidget {
     for (var c in children) {
       c.draw(doc);
     }
+  }
+}
+
+/// this widget that show its children in one or more columns
+class Section extends Column {
+  final int _nCols;
+  final int _spCol;
+  Section(this._nCols, {required super.children, int? spCol})
+      : _spCol = spCol ?? 36;
+  @override
+  void draw(Document doc) {
+    doc._sections.add(this);
+    doc._newSection(_nCols, _spCol);
+    super.draw(doc);
+    doc._sections.removeLast();
+    doc._status = _Status.exit;
   }
 }
 
@@ -509,6 +559,7 @@ class Text extends Widget {
 
   @override
   void draw(Document doc) {
+    doc._newWidget();
     String a = '';
     if (_style != null) {
       doc._setStyle(_style._style);
@@ -538,6 +589,7 @@ class Image extends Widget {
       {this.dpi = 72, this.share = true, this.width, this.height});
   @override
   void draw(Document doc) {
+    doc._newWidget();
     doc._insertImage(_data, dpi, share, width, height);
   }
 }
@@ -549,6 +601,7 @@ class Line extends Widget {
   Line([this.w = 1]);
   @override
   void draw(Document doc) {
+    doc._newWidget();
     double width = doc.getPage().availableWidth;
     double wd = w * width;
     double mg = (um * width - wd) / 2;
@@ -564,6 +617,7 @@ class Listing extends Widget {
   Listing(this._elements, this._numbered);
   @override
   void draw(Document doc) {
+    doc._newWidget();
     for (int i = 0; i < _elements.length; i++) {
       String c = _numbered ? '$i.)' : '\\u8226\\\'95';
       write('{\\listtext\\pard\\plain $c\\tab}\\ilvl0\\ls${_numbered ? 1 : 2}');

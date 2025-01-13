@@ -45,14 +45,12 @@ Create a document (use Times New Roman as font)
       rtf.SkipPage(),
       rtf.Text('Third test text'),
     ];
-    rtf.Document doc = rtf.Document(el);
+    rtf.Document doc = rtf.Document(el, hdLeft: rtf.PageNo());
     doc.addFont('Normal', 'roman', 'Times New Roman', rtf.FontStyle.regular, 9);
     doc.addFont('heading 1', 'roman', 'Times New Roman', rtf.FontStyle.bold, 14);
     doc.addFont('heading 2', 'roman', 'Times New Roman', rtf.FontStyle.bold, 12);
-    doc.setHf(rtf.HF.hdLeft, rtf.PageNo());
-    doc.setHf(rtf.HF.hdCenter, rtf.Image(await PlatformAssetBundle().load("assets/image.png")));
     await doc.save(File('result.rtf'));
 
 ```
 
-See example directory
+See also example directory
