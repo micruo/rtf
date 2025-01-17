@@ -33,7 +33,9 @@ In order to use this rtf library, follow the steps above:
 ## Examples
 
 
-Create a document (use Times New Roman as font)
+Create a document.
+Use Times New Roman as font
+Write some lines with different styles and alignment
 
 ```dart
 
@@ -54,3 +56,8 @@ Create a document (use Times New Roman as font)
 ```
 
 See also example directory
+
+
+## Features and bugs 
+
+Please file feature requests and bugs at the <a href="https://github.com/micruo/rtf/issues">issue tracker</a>.

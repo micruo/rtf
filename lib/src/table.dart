@@ -1,5 +1,6 @@
+import 'dart:io';
+
 import 'widget.dart';
-import 'constant.dart';
 
 enum _Border { top, left, bottom, right, horizontal, vertical }
 
@@ -69,7 +70,8 @@ class Table extends Widget {
   ///
   /// [_headers] is a List of Widget to display into the header
   ///
-  /// [_rows] is a List of List of Widget to display into each row
+  /// [_rows] is a List of List of Widget to display into each row. Any row with more elements than [_headers] length
+  /// will be shrink to such a length
   ///
   /// [_colWidths] contains columns' width
   ///
@@ -112,66 +114,72 @@ class Table extends Widget {
           verticalInside ?? TableBorder.none()
         ];
   @override
-  draw(Document doc) {
-    write('\\par ');
-    _writeCells(doc, _headers, 0, -1);
+  void draw(Document doc, IOSink out) {
+    out.write('\\par ');
+    _writeCells(doc, out, _headers, 0, -1);
     for (int i = 0; i < _rows.length; i++) {
-      _writeCells(doc, _rows[i], 1 + i, _rows.length);
+      _writeCells(doc, out, _rows[i], 1 + i, _rows.length);
     }
   }
 
-  void _writeCells(Document doc, List<Widget> c, int type, int max) {
+  void _writeCells(Document doc, IOSink out, List<Widget> c, int type, int max) {
     var page = doc.getPage();
-    List<int> colWidths = _colWidths ??
-        List.filled(
-            _headers.length, (page.availableWidth / _headers.length).round());
+    List<int> colWidths = _colWidths ?? List.filled(_headers.length, (page.availableWidth / _headers.length).round());
     int w = 0;
-    write("\\trowd ");
+    out.write("\\trowd ");
     if (type == 0) {
-      write("\\trhdr");
+      out.write("\\trhdr");
     } else if (keep) {
-      write("\\trkeep");
+      out.write("\\trkeep");
     }
-    write("\\trgaph70\\trleft$w");
+    out.write("\\trgaph70\\trleft$w");
     if (_height != null && type > 0) {
-      write("\\trrh-${(2 * dot * _height / inch).floor()}");
+      out.write("\\trrh-${(2 * dot * _height / inch).floor()}");
     }
-    for (int col = 0; col <= _headers.length; col++) {
-      if (col > 0) {
-        write("\\cellx$w");
+    int k = 0;
+    for (int col = 0; col < _headers.length; col++, k++) {
+      if (k < c.length ) {
+        int l = c[k].col();
+        while (--l > 0) {
+          w += colWidths[col++] * um;
+        }
       }
-      if (col < _headers.length) {
-        for (_Border b in _Border.values.sublist(0, 4)) {
-          TableBorder bd = _borders[(b == _Border.left && col > 0) ||
-                  (b == _Border.right && col < _headers.length - 1) ||
-                  (b == _Border.top && type > 1) ||
-                  (b == _Border.bottom && type < max)
-              ? (b.index % 2 == 0
-                  ? _Border.horizontal.index
-                  : _Border.vertical.index)
-              : b.index];
-          write('\\clbrdr${b.name[0]}${bd.getBorder()}');
-        }
-        write(_valign._al);
-        int? shading;
-        if (type == 0) {
-          shading = _headerShade?._sh;
-        } else {
-          shading = type % 2 == 0 ? _pairShade?._sh : _oddShade?._sh;
-        }
-        if (shading != null) {
-          write("\\clcbpat8\\clshdng$shading");
-        }
-        w += colWidths[col] * um;
+      for (_Border b in _Border.values.sublist(0, 4)) {
+        TableBorder bd = _borders[(b == _Border.left && k > 0) ||
+                (b == _Border.right && col < _headers.length - 1) ||
+                (b == _Border.top && type > 1) ||
+                (b == _Border.bottom && type < max)
+            ? (b.index % 2 == 0 ? _Border.horizontal.index : _Border.vertical.index)
+            : b.index];
+        out.write('\\clbrdr${b.name[0]}${bd.getBorder()}');
       }
+      out.write(_valign._al);
+      int? shading;
+      if (type == 0) {
+        shading = _headerShade?._sh;
+      } else {
+        shading = type % 2 == 0 ? _pairShade?._sh : _oddShade?._sh;
+      }
+      if (shading != null) {
+        out.write("\\clcbpat8\\clshdng$shading");
+      }
+      w += colWidths[col] * um;
+      out.write("\\cellx$w");
     }
     for (int col = 0; col < _headers.length; col++) {
-      write("\\intbl{");
+      out.write("\\intbl{");
       if (col < c.length) {
-        c[col].draw(doc);
+        c[col].draw(doc, out);
       }
-      write("\\cell }");
+      out.write("\\cell }");
     }
-    write("\\intbl{\\row }\\pard\\plain\r\n");
+    out.writeln("\\intbl{\\row }\\pard\\plain");
   }
+}
+
+class ColSpan extends SingleChildWidget {
+  final int _nCol;
+  ColSpan(this._nCol, {required super.child}) : assert(_nCol > 0);
+  @override
+  int col() => _nCol;
 }
