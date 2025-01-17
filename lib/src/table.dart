@@ -122,9 +122,12 @@ class Table extends Widget {
     }
   }
 
-  void _writeCells(Document doc, IOSink out, List<Widget> c, int type, int max) {
+  void _writeCells(
+      Document doc, IOSink out, List<Widget> c, int type, int max) {
     var page = doc.getPage();
-    List<int> colWidths = _colWidths ?? List.filled(_headers.length, (page.availableWidth / _headers.length).round());
+    List<int> colWidths = _colWidths ??
+        List.filled(
+            _headers.length, (page.availableWidth / _headers.length).round());
     int w = 0;
     out.write("\\trowd ");
     if (type == 0) {
@@ -138,7 +141,7 @@ class Table extends Widget {
     }
     int k = 0;
     for (int col = 0; col < _headers.length; col++, k++) {
-      if (k < c.length ) {
+      if (k < c.length) {
         int l = c[k].col();
         while (--l > 0) {
           w += colWidths[col++] * um;
@@ -149,7 +152,9 @@ class Table extends Widget {
                 (b == _Border.right && col < _headers.length - 1) ||
                 (b == _Border.top && type > 1) ||
                 (b == _Border.bottom && type < max)
-            ? (b.index % 2 == 0 ? _Border.horizontal.index : _Border.vertical.index)
+            ? (b.index % 2 == 0
+                ? _Border.horizontal.index
+                : _Border.vertical.index)
             : b.index];
         out.write('\\clbrdr${b.name[0]}${bd.getBorder()}');
       }

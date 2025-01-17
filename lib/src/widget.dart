@@ -11,7 +11,8 @@ const dot = 72.0;
 enum _Status { starting, normal, exit }
 
 /// Header and footer possible positions
-@Deprecated('use hdLeft, hdCenter, hdRight, ftLeft, ftCenter, ftRight in Document constructor')
+@Deprecated(
+    'use hdLeft, hdCenter, hdRight, ftLeft, ftCenter, ftRight in Document constructor')
 enum HF { hdLeft, hdCenter, hdRight, ftLeft, ftCenter, ftRight }
 
 /// Color that can be used as border color in a Table
@@ -70,12 +71,18 @@ class PageFormat {
         marginLeft = marginAll ?? marginLeft,
         marginRight = marginAll ?? marginRight;
 
-  static const PageFormat a3 = PageFormat(29.7 * cm, 42 * cm, marginAll: 2.0 * cm);
-  static const PageFormat a4 = PageFormat(21.0 * cm, 29.7 * cm, marginAll: 2.0 * cm);
-  static const PageFormat a5 = PageFormat(14.8 * cm, 21.0 * cm, marginAll: 2.0 * cm);
-  static const PageFormat a6 = PageFormat(10.5 * cm, 14.8 * cm, marginAll: 1.0 * cm);
-  static const PageFormat letter = PageFormat(8.5 * dot, 11.0 * dot, marginAll: dot);
-  static const PageFormat legal = PageFormat(8.5 * dot, 14.0 * dot, marginAll: dot);
+  static const PageFormat a3 =
+      PageFormat(29.7 * cm, 42 * cm, marginAll: 2.0 * cm);
+  static const PageFormat a4 =
+      PageFormat(21.0 * cm, 29.7 * cm, marginAll: 2.0 * cm);
+  static const PageFormat a5 =
+      PageFormat(14.8 * cm, 21.0 * cm, marginAll: 2.0 * cm);
+  static const PageFormat a6 =
+      PageFormat(10.5 * cm, 14.8 * cm, marginAll: 1.0 * cm);
+  static const PageFormat letter =
+      PageFormat(8.5 * dot, 11.0 * dot, marginAll: dot);
+  static const PageFormat legal =
+      PageFormat(8.5 * dot, 14.0 * dot, marginAll: dot);
 
   PageFormat copyWith(
       {double? width,
@@ -197,12 +204,14 @@ class Document {
   }
 
   /// add a new Font to the fonts list
-  void addFont(String name, String family, String fontName, FontStyle style, double size) =>
+  void addFont(String name, String family, String fontName, FontStyle style,
+          double size) =>
       _fonts.add(_Font(name, family, fontName, style, size));
 
   /// add an element to the header or footer
   /// Warning: if an Image widget will be added and its height is too big, an invalid document could be generated
-  @Deprecated('use hdLeft, hdCenter, hdRight, ftLeft, ftCenter, ftRight in Document constructor')
+  @Deprecated(
+      'use hdLeft, hdCenter, hdRight, ftLeft, ftCenter, ftRight in Document constructor')
   void setHf(HF what, Widget value) => _hfValues[what.index] = value;
   String _text(String str) {
     StringBuffer txt = StringBuffer();
@@ -350,7 +359,8 @@ class Document {
     var page = getPage();
     _out.writeln(
         "\\paperw${(um * page.width).round()}\\paperh${(um * page.height).round()}\\margl${(um * page.marginLeft).round()}\\margr${(um * page.marginRight).round()}\\margt${(um * page.marginTop).round()}\\margb${(um * page.marginBottom).round()}${_orientation == 0 ? "\\landscape" : ""}");
-    _out.write("\\widowctrl\\ftnbj\\aenddoc\\hyphcaps0\\viewkind1\\viewscale90");
+    _out.write(
+        "\\widowctrl\\ftnbj\\aenddoc\\hyphcaps0\\viewkind1\\viewscale90");
     _out.write("\\fet0\\sectd ");
     _out.write("\\linex0");
     _out.write("\\headery500");
@@ -374,7 +384,8 @@ class Document {
     }
     _out.write(bFooter ? "{\\footer " : "{\\header ");
     // don't round before multiply, otherwise you loose some decimals
-    _out.write("\\pard\\plain \\nowidctlpar\\widctlpar\\tqc\\tx${l.round()}\\tqr\\tx${(2 * l).round()}\\adjustright {");
+    _out.write(
+        "\\pard\\plain \\nowidctlpar\\widctlpar\\tqc\\tx${l.round()}\\tqr\\tx${(2 * l).round()}\\adjustright {");
     _out.write("\\b\\qj ");
     for (int j = 0; j < styles.length; j++) {
       if (j > 0) {
@@ -388,7 +399,8 @@ class Document {
     _out.write("\\par }}");
   }
 
-  void _insertImage(ByteData data, int dpi, bool share, int? width, int? height) {
+  void _insertImage(
+      ByteData data, int dpi, bool share, int? width, int? height) {
     if (share) {
       _out.write("{");
       _out.write("\\*\\shppict ");
@@ -433,7 +445,8 @@ class _Font {
   final double _size;
   final String _family;
 
-  const _Font(this._name, this._family, this._fontName, this._style, this._size);
+  const _Font(
+      this._name, this._family, this._fontName, this._style, this._size);
 }
 
 /// the Widget class
@@ -541,7 +554,8 @@ class Row extends _MultipleChildrenWidget {
 class Section extends Column {
   final int _nCols;
   final int _spCol;
-  Section(this._nCols, {required super.children, int? spCol}) : _spCol = spCol ?? 36;
+  Section(this._nCols, {required super.children, int? spCol})
+      : _spCol = spCol ?? 36;
   @override
   void draw(Document doc, IOSink out) {
     doc._sections.add(this);
@@ -586,7 +600,8 @@ class Image extends Widget {
 
   /// image's height
   final int? height;
-  Image(this._data, {this.dpi = 72, this.share = true, this.width, this.height});
+  Image(this._data,
+      {this.dpi = 72, this.share = true, this.width, this.height});
   @override
   void draw(Document doc, IOSink out) {
     doc._newWidget();
@@ -620,7 +635,8 @@ class Listing extends Widget {
     doc._newWidget();
     for (int i = 0; i < _elements.length; i++) {
       String c = _numbered ? '$i.)' : '\\u8226\\\'95';
-      out.write('{\\listtext\\pard\\plain $c\\tab}\\ilvl0\\ls${_numbered ? 1 : 2}');
+      out.write(
+          '{\\listtext\\pard\\plain $c\\tab}\\ilvl0\\ls${_numbered ? 1 : 2}');
       _elements[i].draw(doc, out);
       out.write('\\par');
     }
