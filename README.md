@@ -1,21 +1,10 @@
-<!--
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
-
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/tools/pub/writing-package-pages).
-
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/to/develop-packages).
--->
-
 <h1>A minimal Rtf creation library for dart/flutter</h1>
 
 ## Features
 
 The library can create RTF file 
+In this release was introduced the Paragraph Widget: it defines a <i>style</i>, and contains one or more Text Widget, each one
+possibly with its own <i>font</i>. So, TextStyle.style was deprecated: use TextStyle.font instead
 
 ## Installing
 In order to use this rtf library, follow the steps above:
@@ -33,29 +22,40 @@ In order to use this rtf library, follow the steps above:
 ## Examples
 
 
-Create a document.
-Use Times New Roman as font
-Write some lines with different styles and alignment
+Create a document in Rich Text Format.
+Use Arial as font writing some lines with different styles and alignments.
+
+PAY ATTENTION: Document.addFont was deprecated: use Document.styles instead
 
 ```dart
 
-    var el = [
-      rtf.Text('Test text', style: rtf.TextStyle(style: 'heading 1', align: rtf.Align.right)),
-      rtf.NewLine(),
-      rtf.Text('Second test text', style: rtf.TextStyle(style: 'Normal')),
-      rtf.NewLine(),
-      rtf.SkipPage(),
-      rtf.Text('Third test text'),
-    ];
-    rtf.Document doc = rtf.Document(el, hdLeft: rtf.PageNo());
-    doc.addFont('Normal', 'roman', 'Times New Roman', rtf.FontStyle.regular, 9);
-    doc.addFont('heading 1', 'roman', 'Times New Roman', rtf.FontStyle.bold, 14);
-    doc.addFont('heading 2', 'roman', 'Times New Roman', rtf.FontStyle.bold, 12);
-    await doc.save(File('result.rtf'));
+  var el = [
+    rtf.Paragraph(align: rtf.Align.right, style: 'Heading 1', children: [
+      rtf.Text('Test text',
+          style: rtf.TextStyle(variations: [rtf.StyleVariation.italic])),
+      rtf.Text(' Continuos test text',
+          style: rtf.TextStyle(
+              font: 'Normal', variations: [rtf.StyleVariation.underline]))
+    ]),
+    rtf.NewLine(),
+    rtf.Paragraph(style: 'Normal', children: [rtf.Text('Second test text')]),
+    rtf.NewLine(),
+    rtf.SkipPage(),
+    rtf.Text('Third test text'),
+  ];
+  rtf.Document doc = rtf.Document(el, hdLeft: rtf.PageNo(),
+      styles: [
+      rtf.Style('Normal', rtf.FontFamily.swiss, 'Arial', 9),
+      rtf.Style('Heading 1', rtf.FontFamily.swiss, 'Arial', 14,
+          [rtf.StyleVariation.bold]),
+      rtf.Style('Heading 2', rtf.FontFamily.swiss, 'Arial', 12,
+          [rtf.StyleVariation.bold])
+  ]);
+  await doc.save(File('result.rtf'));
 
 ```
 
-See also example directory
+See also <a href="https://github.com/micruo/rtf/tree/main/example">example directory</a>
 
 
 ## Features and bugs 

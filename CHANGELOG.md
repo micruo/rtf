@@ -18,3 +18,11 @@
 * Reengineered code
 * Added a parameter to Column widget to omit newLine after last child
 * Added a ColSpan widget to span a cell on more columns
+
+## 0.0.5
+
+* Added FontFamily enum and introduced Document.addStyle()
+* Deprecated Row widget, substituting it with Paragraph
+* Added StyleVariation (italic, bold, etc.)
+* In TextStyle, deprecated align, style field and added font, variations and color
+* Added new example

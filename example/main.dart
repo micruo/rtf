@@ -23,19 +23,29 @@ Future<ByteData?> _loadImageAsByteData(String filePath) async {
 
 Future<void> main() async {
   var el = [
-    rtf.Text('Test text',
-        style: rtf.TextStyle(style: 'heading 1', align: rtf.Align.right)),
+    rtf.Paragraph(align: rtf.Align.right, style: 'Heading 1', children: [
+      rtf.Text('Test text',
+          style: rtf.TextStyle(variations: [rtf.StyleVariation.italic])),
+      rtf.Text(' Continuos test text',
+          style: rtf.TextStyle(
+              font: 'Normal', variations: [rtf.StyleVariation.underline]))
+    ]),
     rtf.NewLine(),
-    rtf.Text('Second test text', style: rtf.TextStyle(style: 'Normal')),
+    rtf.Paragraph(style: 'Normal', children: [rtf.Text('Second test text')]),
     rtf.NewLine(),
     rtf.SkipPage(),
     rtf.Text('Third test text'),
   ];
   ByteData? bd = await _loadImageAsByteData('image.png');
   rtf.Document doc = rtf.Document(el,
-      hdLeft: rtf.PageNo(), hdCenter: bd == null ? null : rtf.Image(bd));
-  doc.addFont('Normal', 'swiss', 'Arial', rtf.FontStyle.regular, 9);
-  doc.addFont('heading 1', 'swiss', 'Arial', rtf.FontStyle.bold, 14);
-  doc.addFont('heading 2', 'swiss', 'Arial', rtf.FontStyle.bold, 12);
+      hdLeft: rtf.PageNo(),
+      hdCenter: bd == null ? null : rtf.Image(bd),
+      styles: [
+        rtf.Style('Normal', rtf.FontFamily.swiss, 'Arial', 9),
+        rtf.Style('Heading 1', rtf.FontFamily.swiss, 'Arial', 14,
+            [rtf.StyleVariation.bold]),
+        rtf.Style('Heading 2', rtf.FontFamily.swiss, 'Arial', 12,
+            [rtf.StyleVariation.bold])
+      ]);
   await doc.save(File('result.rtf'));
 }

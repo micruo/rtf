@@ -182,7 +182,9 @@ class Table extends Widget {
   }
 }
 
+/// Widget to define a cell in a table that span on more columns
 class ColSpan extends SingleChildWidget {
+  /// number of columns to span on
   final int _nCol;
   ColSpan(this._nCol, {required super.child}) : assert(_nCol > 0);
   @override

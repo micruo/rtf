@@ -8,29 +8,36 @@ Future<void> main() async {
       (index) => List.generate(
           4,
           (c) =>
-              rtf.Text('Cell$index$c', style: rtf.TextStyle(style: 'Normal'))));
+              rtf.Text('Cell$index$c', style: rtf.TextStyle(font: 'Normal'))));
   c.first.first = rtf.Column(lastNL: false, children: [
-    rtf.Text('1', style: rtf.TextStyle(style: 'Normal')),
-    rtf.Text('alfa', style: rtf.TextStyle(style: 'Normal'))
+    rtf.Text('1', style: rtf.TextStyle(font: 'Normal')),
+    rtf.Text('alfa', style: rtf.TextStyle(font: 'Normal'))
   ]);
   c.last.removeLast();
   c.last[1] = rtf.ColSpan(2,
-      child: rtf.Text('span', style: rtf.TextStyle(align: rtf.Align.center)));
+      child: rtf.Paragraph(
+          align: rtf.Align.center,
+          style: 'Normal',
+          children: [rtf.Text('Span')]));
   var el = [
     rtf.Table(
         [
-          rtf.Text('First column',
-              style:
-                  rtf.TextStyle(style: 'heading 2', align: rtf.Align.center)),
-          rtf.Text('Second column',
-              style:
-                  rtf.TextStyle(style: 'heading 2', align: rtf.Align.center)),
-          rtf.Text('Third column',
-              style:
-                  rtf.TextStyle(style: 'heading 2', align: rtf.Align.center)),
-          rtf.Text('Fourth column',
-              style:
-                  rtf.TextStyle(style: 'heading 2', align: rtf.Align.center)),
+          rtf.Paragraph(
+              style: 'Heading 2',
+              align: rtf.Align.center,
+              children: [rtf.Text('First column')]),
+          rtf.Paragraph(
+              style: 'Heading 2',
+              align: rtf.Align.center,
+              children: [rtf.Text('Second column')]),
+          rtf.Paragraph(
+              style: 'Heading 2',
+              align: rtf.Align.center,
+              children: [rtf.Text('Third column')]),
+          rtf.Paragraph(
+              style: 'Heading 2',
+              align: rtf.Align.center,
+              children: [rtf.Text('Fourth column')]),
         ],
         c,
         colWidths: [100, 150, 100, 100],
@@ -43,9 +50,12 @@ Future<void> main() async {
         top: rtf.TableBorder.standard(),
         bottom: rtf.TableBorder.standard())
   ];
-  rtf.Document doc = rtf.Document(el);
-  doc.addFont('Normal', 'swiss', 'Arial', rtf.FontStyle.regular, 9);
-  doc.addFont('heading 1', 'swiss', 'Arial', rtf.FontStyle.bold, 14);
-  doc.addFont('heading 2', 'swiss', 'Arial', rtf.FontStyle.bold, 12);
+  rtf.Document doc = rtf.Document(el, styles: [
+    rtf.Style('Normal', rtf.FontFamily.swiss, 'Arial', 9),
+    rtf.Style('Heading 1', rtf.FontFamily.swiss, 'Arial', 14,
+        [rtf.StyleVariation.bold]),
+    rtf.Style('Heading 2', rtf.FontFamily.swiss, 'Arial', 12,
+        [rtf.StyleVariation.bold])
+  ]);
   await doc.save(File('result.rtf'));
 }

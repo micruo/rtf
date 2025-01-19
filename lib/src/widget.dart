@@ -8,12 +8,12 @@ const um = 20;
 const double inch = 2.54;
 const dot = 72.0;
 
-enum _Status { starting, normal, exit }
-
 /// Header and footer possible positions
 @Deprecated(
     'use hdLeft, hdCenter, hdRight, ftLeft, ftCenter, ftRight in Document constructor')
 enum HF { hdLeft, hdCenter, hdRight, ftLeft, ftCenter, ftRight }
+
+enum _Status { starting, normal, exit }
 
 /// Color that can be used as border color in a Table
 enum Color {
@@ -34,19 +34,19 @@ enum Color {
   ligthGray(0xffC0C0C0),
   darkGray(0xff808080);
 
-  final int color;
-  const Color(this.color);
+  final int _color;
+  const Color(this._color);
 
   int _red() {
-    return (color >> 16) & 0xff;
+    return (_color >> 16) & 0xff;
   }
 
   int _green() {
-    return (color >> 8) & 0xff;
+    return (_color >> 8) & 0xff;
   }
 
   int _blue() {
-    return color & 0xff;
+    return _color & 0xff;
   }
 }
 
@@ -128,14 +128,19 @@ class Document {
 
   /// the widgets list
   final List<Widget> _elements;
-  final List<_Font> _fonts = [];
+  final List<Style> _styles;
   final List<String> _mStyles = [];
+  final List<String> _mFonts = [];
   final List<Widget?> _hfValues;
   final bool _interleave;
   final int _orientation;
   final PageFormat _pageFormat;
   _Status _status = _Status.starting;
+  bool _continuos = false;
   final List<Section> _sections = [];
+
+  /// Warning: if an Image widget will be added in header/footer
+  /// and its height is too big, an invalid document could be generated
   Document(this._elements,
       {PageFormat pageFormat = PageFormat.a4,
       int orientation = 1,
@@ -145,10 +150,12 @@ class Document {
       Widget? hdRight,
       Widget? ftLeft,
       Widget? ftCenter,
-      Widget? ftRight})
+      Widget? ftRight,
+      List<Style> styles = const []})
       : _pageFormat = pageFormat,
         _orientation = orientation,
         _interleave = interleave,
+        _styles = styles,
         _hfValues = [hdLeft, hdCenter, hdRight, ftLeft, ftCenter, ftRight];
   void _newWidget() {
     if (_status == _Status.exit) {
@@ -165,6 +172,7 @@ class Document {
     _out.writeln('\\cols$nCols\\colsx$l');
   }
 
+  /// save this Document on a file
   Future<void> save(File f, {int charset = 1252, int lang = 1040}) async {
     _out = f.openWrite(encoding: latin1);
     _out.write("{\\rtf1\\ansi\\ansicpg");
@@ -178,8 +186,8 @@ class Document {
     _defineColors();
 
     _out.write("{\\stylesheet");
-    for (int index = 0; index < _fonts.length; index++) {
-      _defineStyle(_fonts[index], index, lang);
+    for (int index = 0; index < _styles.length; index++) {
+      _defineStyle(_styles[index], index, lang);
     }
     _out.write("}");
     _defineListTables();
@@ -204,9 +212,10 @@ class Document {
   }
 
   /// add a new Font to the fonts list
+  @Deprecated('Use Dcoument stlyes instead')
   void addFont(String name, String family, String fontName, FontStyle style,
-          double size) =>
-      _fonts.add(_Font(name, family, fontName, style, size));
+      double size) {}
+  // add a new Font to the style list
 
   /// add an element to the header or footer
   /// Warning: if an Image widget will be added and its height is too big, an invalid document could be generated
@@ -219,35 +228,27 @@ class Document {
       switch (str[i]) {
         case '\n':
           txt.write("\\par ");
-          break;
         case '\\':
           txt.write("\\\\");
-          break;
         case '{':
           txt.write("\\{");
-          break;
         case '}':
           txt.write("\\}");
-          break;
         case '&':
           if (i < str.length - 2 && str[i + 1] == '#') {
             bool bCode = true;
             switch (str[i + 2]) {
               case 'b':
                 txt.write("\\b ");
-                break;
               case 'i':
                 txt.write("\\i ");
-                break;
               case 'u':
                 txt.write("\\ul ");
-                break;
               case 'p':
                 txt
                   ..write("\\pard\\plain")
                   ..write(_mStyles.first)
                   ..write(' ');
-                break;
               default:
                 txt.write("\$");
                 bCode = false;
@@ -259,10 +260,8 @@ class Document {
           } else {
             txt.write("\$");
           }
-          break;
         case '\t':
           txt.write("\\tab ");
-          break;
         default:
           if (str.codeUnits[i] < 0x100) {
             txt.write(str[i]);
@@ -272,7 +271,6 @@ class Document {
               ..write(str.codeUnitAt(i))
               ..write("\\'3f");
           }
-          break;
       }
     }
     return txt.toString();
@@ -285,17 +283,12 @@ class Document {
       for (int lvl = 0; lvl < 8; lvl++) {
         _out.write(
             '{\\listlevel\\levelnfc${_list[i - 1]}\\leveljc0\\levelstartat1\\levelfollow${i == 3 ? 2 : 0}{\\leveltext ');
-        switch (i) {
-          case 1:
-            _out.write('\\\'02\\\'0$lvl.;}');
-            break;
-          case 2:
-            _out.write('\\\'01\\u${_bullet[lvl % _bullet.length]};}');
-            break;
-          case 3:
-            _out.write('\\\'00;}');
-            break;
-        }
+        _out.write(switch (i) {
+          1 => '\\\'02\\\'0$lvl.;}',
+          2 => '\\\'01\\u${_bullet[lvl % _bullet.length]};}',
+          3 => '\\\'00;}',
+          _ => ''
+        });
         _out.write('{\\levelnumbers${i == 1 ? '\\\'01' : ''};}');
         if (i == _list.length) {
           _out.writeln('\\fi0\\li0}');
@@ -314,10 +307,10 @@ class Document {
   }
 
   void _defineFonts() {
-    for (int idx = 0; idx < _fonts.length; idx++) {
+    for (int idx = 0; idx < _styles.length; idx++) {
       _out.write("{\\f$idx");
-      _out.write("\\f${_fonts[idx]._family}");
-      _out.write("\\fcharset0\\fprq2 ${_fonts[idx]._fontName};}");
+      _out.write("\\f${_styles[idx]._family.name}");
+      _out.write("\\fcharset0\\fprq2 ${_styles[idx]._fontName};}");
     }
   }
 
@@ -329,22 +322,22 @@ class Document {
     _out.writeln("\\red255\\green255\\blue255;}");
   }
 
-  void _defineStyle(_Font f, int index, int lang) {
+  void _defineStyle(Style f, int index, int lang) {
     String styleName = f._name;
     StringBuffer str = StringBuffer();
     if (styleName != 'Normal') {
       str
-        ..write("\\s")
-        ..write(index.toString())
+        ..write("\\s$index")
         ..write("\\sb240\\sa60");
     } else if (_interleave) {
       str.write("\\sa240");
     }
+    String font =
+        '\\f$index${f._style.isEmpty ? '\\plain' : f._style.map((e) => e._start).join()}\\fs${(2 * f._size).floor()}';
+    _mFonts.add(font);
     str
-      ..write("\\keepn\\nowidctlpar\\widctlpar\\adjustright \\f$index")
-      ..write(f._style == FontStyle.bold ? '\\b' : '\\plain')
-      ..write("\\fs")
-      ..write((2 * f._size).floor().toString())
+      ..write("\\keepn\\adjustright")
+      ..write(font)
       ..write("\\language$lang");
     _mStyles.add(str.toString());
     str.write(' ');
@@ -370,10 +363,16 @@ class Document {
     _out.write("\\sectdefaultcl \\pard\\plain ");
   }
 
-  _Font _setStyle(String font) {
-    int idx = _fonts.indexWhere((e) => e._name == font);
-    _out.write('\\pard\\plain${_mStyles[idx]}');
-    return _fonts[idx];
+  Style? _setStyle(String font) {
+    int idx = _styles.indexWhere((e) => e._name == font);
+    if (idx < 0) return null;
+    _out.write('${_continuos ? '' : '\\pard\\plain'}${_mStyles[idx]}');
+    return _styles[idx];
+  }
+
+  void _setFont(String font) {
+    int idx = _styles.indexWhere((e) => e._name == font);
+    if (idx >= 0) _out.write(_mFonts[idx]);
   }
 
   void _hf(bool bFooter) {
@@ -385,7 +384,7 @@ class Document {
     _out.write(bFooter ? "{\\footer " : "{\\header ");
     // don't round before multiply, otherwise you loose some decimals
     _out.write(
-        "\\pard\\plain \\nowidctlpar\\widctlpar\\tqc\\tx${l.round()}\\tqr\\tx${(2 * l).round()}\\adjustright {");
+        "\\pard\\plain \\tqc\\tx${l.round()}\\tqr\\tx${(2 * l).round()}\\adjustright {");
     _out.write("\\b\\qj ");
     for (int j = 0; j < styles.length; j++) {
       if (j > 0) {
@@ -436,17 +435,55 @@ class Document {
 }
 
 /// font's variation
-enum FontStyle { regular, bold, italic }
+@Deprecated('Use StyleVariation instead')
+enum FontStyle {
+  regular('\\plain'),
+  bold('\\b'),
+  italic('\\i');
 
-class _Font {
+  final String _st;
+  const FontStyle(this._st);
+}
+
+/// Font Families allowed
+enum FontFamily {
+  nil,
+
+  ///Unknown or default fonts (the default)
+  roman,
+
+  ///	Roman, proportionally spaced serif fonts. Example:Times New Roman, Palatino
+  swiss,
+
+  ///	Swiss, proportionally spaced sans serif fonts. Example:	Arial
+  modern,
+
+  ///	Fixed-pitch serif and sans serif fonts. Example:	Courier New, Pica
+  script,
+
+  ///	Script fonts. Example:	Cursive
+  decor,
+
+  ///	Decorative fonts. Example:	Old English, ITC Zapf Chancery
+  tech,
+
+  ///	Technical, symbol, and mathematical fonts. Example:	Symbol
+  bidi,
+
+  /// Arabic, Hebrew, or other bidirectional font. Example: Miriam
+}
+
+/// Define a style with its font
+class Style {
   final String _name;
   final String _fontName;
-  final FontStyle _style;
+  final Set<StyleVariation> _style;
   final double _size;
-  final String _family;
+  final FontFamily _family;
 
-  const _Font(
-      this._name, this._family, this._fontName, this._style, this._size);
+  Style(this._name, this._family, this._fontName, this._size,
+      [List<StyleVariation> variations = const []])
+      : _style = Set.from(variations.where((e) => e._end.isEmpty));
 }
 
 /// the Widget class
@@ -455,6 +492,7 @@ abstract class Widget {
   int col() => 1;
 }
 
+/// abstract Widget with a single widget as child
 abstract class SingleChildWidget extends Widget {
   Widget child;
   SingleChildWidget({required this.child});
@@ -481,13 +519,35 @@ enum Align {
   const Align(this._al);
 }
 
+enum StyleVariation {
+  italic('\\i', ''),
+  bold('\\b', ''),
+  superscript('\\super', '\\nosupersub'),
+  subscript('\\sub', '\\nosupersub'),
+  underline('\\ul', ''),
+  dottedUnderline('\\uld', '');
+
+  final String _start;
+  final String _end;
+  const StyleVariation(this._start, this._end);
+}
+
 /// Define the Text's widget style
 class TextStyle {
-  final String _style;
+  final String? _font;
   final Align? _align;
-  TextStyle({String style = 'Normal', Align? align})
-      : _style = style,
-        _align = align;
+  final Color? _color;
+  final Set<StyleVariation> _variations;
+  TextStyle(
+      {@Deprecated('Use font instead') String style = 'Normal',
+      @Deprecated('Use Paragraph instead') Align? align,
+      String? font,
+      Color? color,
+      List<StyleVariation> variations = const []})
+      : _font = font,
+        _align = align,
+        _color = color,
+        _variations = Set.from(variations);
 }
 
 /// Widget to insert a new page break
@@ -540,6 +600,7 @@ class Column extends _MultipleChildrenWidget {
 }
 
 /// this widget show all its children
+@Deprecated('Use Paragraph instead')
 class Row extends _MultipleChildrenWidget {
   Row({required super.children});
   @override
@@ -547,6 +608,26 @@ class Row extends _MultipleChildrenWidget {
     for (var c in children) {
       c.draw(doc, out);
     }
+  }
+}
+
+/// this widget show all its children on the same rows
+class Paragraph extends _MultipleChildrenWidget {
+  final String? _style;
+  final Align? _align;
+
+  Paragraph({required super.children, String? style, Align? align})
+      : _style = style,
+        _align = align;
+  @override
+  void draw(Document doc, IOSink out) {
+    doc._continuos = true;
+    if (_style != null) doc._setStyle(_style);
+    out.write(_align?._al ?? '');
+    for (var c in children) {
+      c.draw(doc, out);
+    }
+    doc._continuos = false;
   }
 }
 
@@ -575,12 +656,16 @@ class Text extends Widget {
   @override
   void draw(Document doc, IOSink out) {
     doc._newWidget();
-    String a = '';
+    String s = '';
+    String e = '';
+    String cf = '';
     if (_style != null) {
-      doc._setStyle(_style._style);
-      a = _style._align?._al ?? '';
+      if (_style._font != null) doc._setFont(_style._font);
+      s = _style._variations.map((s) => s._start).join();
+      e = _style._variations.map((s) => s._end).join();
+      if (_style._color != null) cf = '\\cf${_style._color.index + 1}';
     }
-    out.write('{$a${doc._text(_txt)}}');
+    out.write('$s$cf{${_style?._align?._al ?? ''}${doc._text(_txt)}}$e');
   }
 }
 
