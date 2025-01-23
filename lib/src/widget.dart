@@ -8,10 +8,14 @@ const um = 20;
 const double inch = 2.54;
 const dot = 72.0;
 
-/// Header and footer possible positions
-@Deprecated(
-    'use hdLeft, hdCenter, hdRight, ftLeft, ftCenter, ftRight in Document constructor')
-enum HF { hdLeft, hdCenter, hdRight, ftLeft, ftCenter, ftRight }
+/// Page orientation: landscape or portrait (the default)
+enum PageOrientation {
+  landscape('\\landscape'),
+  portrait('');
+
+  final String _rtf;
+  const PageOrientation(this._rtf);
+}
 
 enum _Status { starting, normal, exit }
 
@@ -133,7 +137,7 @@ class Document {
   final List<String> _mFonts = [];
   final List<Widget?> _hfValues;
   final bool _interleave;
-  final int _orientation;
+  final PageOrientation _orientation;
   final PageFormat _pageFormat;
   _Status _status = _Status.starting;
   bool _continuos = false;
@@ -143,16 +147,33 @@ class Document {
   /// and its height is too big, an invalid document could be generated
   Document(this._elements,
       {PageFormat pageFormat = PageFormat.a4,
-      int orientation = 1,
+
+      /// document orientation
+      PageOrientation orientation = PageOrientation.portrait,
       bool interleave = false,
+
+      /// header left object
       Widget? hdLeft,
+
+      /// header center object
       Widget? hdCenter,
+
+      /// header right object
       Widget? hdRight,
+
+      /// footer left object
       Widget? ftLeft,
+
+      /// footer center object
       Widget? ftCenter,
+
+      /// footer right object
       Widget? ftRight,
+
+      /// styles defined for this Document. It has to be not empty
       List<Style> styles = const []})
-      : _pageFormat = pageFormat,
+      : assert(styles.isNotEmpty),
+        _pageFormat = pageFormat,
         _orientation = orientation,
         _interleave = interleave,
         _styles = styles,
@@ -175,21 +196,12 @@ class Document {
   /// save this Document on a file
   Future<void> save(File f, {int charset = 1252, int lang = 1040}) async {
     _out = f.openWrite(encoding: latin1);
-    _out.write("{\\rtf1\\ansi\\ansicpg");
-    _out.write(charset.toString());
-    _out.write("\\uc1 \\deff0\\deflang$lang");
-    _out.write("\\deflangfe$lang");
-    _out.write("{\\fonttbl");
+    _defineDoc(charset, lang);
     _defineFonts();
-    _out.write("}");
 
     _defineColors();
 
-    _out.write("{\\stylesheet");
-    for (int index = 0; index < _styles.length; index++) {
-      _defineStyle(_styles[index], index, lang);
-    }
-    _out.write("}");
+    _defineStyles(lang);
     _defineListTables();
     _defineHeader();
 
@@ -205,75 +217,31 @@ class Document {
   /// returns the current PageFormat
   PageFormat getPage() {
     var page = _pageFormat;
-    if (_orientation == 0) {
+    if (_orientation == PageOrientation.landscape) {
       page = page.copyWith(width: page.height, height: page.width);
     }
     return page;
   }
 
-  /// add a new Font to the fonts list
-  @Deprecated('Use Dcoument stlyes instead')
-  void addFont(String name, String family, String fontName, FontStyle style,
-      double size) {}
-  // add a new Font to the style list
-
-  /// add an element to the header or footer
-  /// Warning: if an Image widget will be added and its height is too big, an invalid document could be generated
-  @Deprecated(
-      'use hdLeft, hdCenter, hdRight, ftLeft, ftCenter, ftRight in Document constructor')
-  void setHf(HF what, Widget value) => _hfValues[what.index] = value;
   String _text(String str) {
     StringBuffer txt = StringBuffer();
     for (int i = 0; i < str.length; i++) {
-      switch (str[i]) {
-        case '\n':
-          txt.write("\\par ");
-        case '\\':
-          txt.write("\\\\");
-        case '{':
-          txt.write("\\{");
-        case '}':
-          txt.write("\\}");
-        case '&':
-          if (i < str.length - 2 && str[i + 1] == '#') {
-            bool bCode = true;
-            switch (str[i + 2]) {
-              case 'b':
-                txt.write("\\b ");
-              case 'i':
-                txt.write("\\i ");
-              case 'u':
-                txt.write("\\ul ");
-              case 'p':
-                txt
-                  ..write("\\pard\\plain")
-                  ..write(_mStyles.first)
-                  ..write(' ');
-              default:
-                txt.write("\$");
-                bCode = false;
-                break;
-            }
-            if (bCode) {
-              i += 2;
-            }
-          } else {
-            txt.write("\$");
-          }
-        case '\t':
-          txt.write("\\tab ");
-        default:
-          if (str.codeUnits[i] < 0x100) {
-            txt.write(str[i]);
-          } else {
-            txt
-              ..write("\\u")
-              ..write(str.codeUnitAt(i))
-              ..write("\\'3f");
-          }
-      }
+      txt.write(switch (str[i]) {
+        '\n' => '\\par',
+        '\\' => '\\\\',
+        '{' => '\\{',
+        '}' => '\\}',
+        '\t' => '\\tab ',
+        _ => str.codeUnits[i] < 0x100 ? str[i] : '\\u${str.codeUnitAt(i)}\\\'3f'
+      });
     }
     return txt.toString();
+  }
+
+  void _defineDoc(int charset, int lang) {
+    _out.write("{\\rtf1\\ansi\\ansicpg$charset");
+    _out.write("\\uc1 \\deff0\\deflang$lang");
+    _out.write("\\deflangfe$lang");
   }
 
   void _defineListTables() {
@@ -307,11 +275,13 @@ class Document {
   }
 
   void _defineFonts() {
+    _out.write("{\\fonttbl");
     for (int idx = 0; idx < _styles.length; idx++) {
       _out.write("{\\f$idx");
       _out.write("\\f${_styles[idx]._family.name}");
       _out.write("\\fcharset0\\fprq2 ${_styles[idx]._fontName};}");
     }
+    _out.write("}");
   }
 
   void _defineColors() {
@@ -322,36 +292,42 @@ class Document {
     _out.writeln("\\red255\\green255\\blue255;}");
   }
 
-  void _defineStyle(Style f, int index, int lang) {
-    String styleName = f._name;
-    StringBuffer str = StringBuffer();
-    if (styleName != 'Normal') {
+  void _defineStyles(int lang) {
+    _out.write("{\\stylesheet");
+    for (int index = 0; index < _styles.length; index++) {
+      Style f = _styles[index];
+
+      String styleName = f._name;
+      StringBuffer str = StringBuffer();
+      if (styleName != 'Normal') {
+        str
+          ..write("\\s$index")
+          ..write("\\sb240\\sa60");
+      } else if (_interleave) {
+        str.write("\\sa240");
+      }
+      String font =
+          '\\f$index${f._style.isEmpty ? '\\plain' : f._style.map((e) => e._start).join()}\\fs${(2 * f._size).floor()}';
+      _mFonts.add(font);
       str
-        ..write("\\s$index")
-        ..write("\\sb240\\sa60");
-    } else if (_interleave) {
-      str.write("\\sa240");
+        ..write("\\keepn\\adjustright")
+        ..write(font)
+        ..write("\\language$lang");
+      _mStyles.add(str.toString());
+      str.write(' ');
+      if (_mStyles.length > 1) {
+        str.write('\\sbasedon0 ');
+      }
+      str.write('\\snext0 $styleName;}');
+      _out.write('{$str');
     }
-    String font =
-        '\\f$index${f._style.isEmpty ? '\\plain' : f._style.map((e) => e._start).join()}\\fs${(2 * f._size).floor()}';
-    _mFonts.add(font);
-    str
-      ..write("\\keepn\\adjustright")
-      ..write(font)
-      ..write("\\language$lang");
-    _mStyles.add(str.toString());
-    str.write(' ');
-    if (_mStyles.length > 1) {
-      str.write('\\sbasedon0 ');
-    }
-    str.write('\\snext0 $styleName;}');
-    _out.write('{$str');
+    _out.write("}");
   }
 
   void _defineHeader() {
     var page = getPage();
     _out.writeln(
-        "\\paperw${(um * page.width).round()}\\paperh${(um * page.height).round()}\\margl${(um * page.marginLeft).round()}\\margr${(um * page.marginRight).round()}\\margt${(um * page.marginTop).round()}\\margb${(um * page.marginBottom).round()}${_orientation == 0 ? "\\landscape" : ""}");
+        "\\paperw${(um * page.width).round()}\\paperh${(um * page.height).round()}\\margl${(um * page.marginLeft).round()}\\margr${(um * page.marginRight).round()}\\margt${(um * page.marginTop).round()}\\margb${(um * page.marginBottom).round()}${_orientation._rtf}");
     _out.write(
         "\\widowctrl\\ftnbj\\aenddoc\\hyphcaps0\\viewkind1\\viewscale90");
     _out.write("\\fet0\\sectd ");
@@ -410,7 +386,7 @@ class Document {
 
     int mult = 1440 ~/ dpi;
     if (width != null) {
-      _out.write("\\picwgoal ${(width * mult)} ");
+      _out.write("\\picwgoal${(width * mult)} ");
     }
     if (height != null) {
       _out.write("\\pichgoal${(height * mult)} ");
@@ -434,17 +410,6 @@ class Document {
   }
 }
 
-/// font's variation
-@Deprecated('Use StyleVariation instead')
-enum FontStyle {
-  regular('\\plain'),
-  bold('\\b'),
-  italic('\\i');
-
-  final String _st;
-  const FontStyle(this._st);
-}
-
 /// Font Families allowed
 enum FontFamily {
   nil,
@@ -452,22 +417,22 @@ enum FontFamily {
   ///Unknown or default fonts (the default)
   roman,
 
-  ///	Roman, proportionally spaced serif fonts. Example:Times New Roman, Palatino
+  ///	Roman, proportionally spaced serif fonts. Example: Times New Roman, Palatino
   swiss,
 
   ///	Swiss, proportionally spaced sans serif fonts. Example:	Arial
   modern,
 
-  ///	Fixed-pitch serif and sans serif fonts. Example:	Courier New, Pica
+  ///	Fixed-pitch serif and sans serif fonts. Example: Courier New, Pica
   script,
 
-  ///	Script fonts. Example:	Cursive
+  ///	Script fonts. Example: Cursive
   decor,
 
-  ///	Decorative fonts. Example:	Old English, ITC Zapf Chancery
+  ///	Decorative fonts. Example: Old English, ITC Zapf Chancery
   tech,
 
-  ///	Technical, symbol, and mathematical fonts. Example:	Symbol
+  ///	Technical, symbol, and mathematical fonts. Example: Symbol
   bidi,
 
   /// Arabic, Hebrew, or other bidirectional font. Example: Miriam
@@ -488,12 +453,16 @@ class Style {
 
 /// the Widget class
 abstract class Widget {
+  /// write the widget belonging to [doc] on [out]
   void draw(Document doc, IOSink out);
+
+  /// number of columns: can be more than 1 in ColSpan Widget
   int col() => 1;
 }
 
 /// abstract Widget with a single widget as child
 abstract class SingleChildWidget extends Widget {
+  /// the only [child]
   Widget child;
   SingleChildWidget({required this.child});
   @override
@@ -519,12 +488,14 @@ enum Align {
   const Align(this._al);
 }
 
+/// possibile style variation, like 'italic', 'bold', and so on
 enum StyleVariation {
   italic('\\i', ''),
   bold('\\b', ''),
   superscript('\\super', '\\nosupersub'),
   subscript('\\sub', '\\nosupersub'),
   underline('\\ul', ''),
+  doubleUnderline('\\uldb', ''),
   dottedUnderline('\\uld', '');
 
   final String _start;
@@ -535,22 +506,29 @@ enum StyleVariation {
 /// Define the Text's widget style
 class TextStyle {
   final String? _font;
-  final Align? _align;
   final Color? _color;
+  final double? _fontSize;
   final Set<StyleVariation> _variations;
   TextStyle(
-      {@Deprecated('Use font instead') String style = 'Normal',
-      @Deprecated('Use Paragraph instead') Align? align,
+      {
+      /// font name: one of the Document styles
       String? font,
+
+      /// color
       Color? color,
+
+      /// font size
+      double? fontSize,
+
+      /// Style varations
       List<StyleVariation> variations = const []})
       : _font = font,
-        _align = align,
         _color = color,
+        _fontSize = fontSize,
         _variations = Set.from(variations);
 }
 
-/// Widget to insert a new page break
+/// A Widget to insert a new page break
 class SkipPage extends Widget {
   @override
   void draw(Document doc, IOSink out) {
@@ -574,7 +552,7 @@ class PageNo extends Widget {
   }
 }
 
-/// Widget to insert a new line break
+/// A Widget to insert a new line break
 class NewLine extends Widget {
   @override
   void draw(Document doc, IOSink out) {
@@ -583,7 +561,7 @@ class NewLine extends Widget {
   }
 }
 
-/// this widget show all its children separated by a newline
+/// A Widget that shows all its children separated by a newline
 class Column extends _MultipleChildrenWidget {
   /// if false, omit newLine after last child
   final bool lastNL;
@@ -599,24 +577,19 @@ class Column extends _MultipleChildrenWidget {
   }
 }
 
-/// this widget show all its children
-@Deprecated('Use Paragraph instead')
-class Row extends _MultipleChildrenWidget {
-  Row({required super.children});
-  @override
-  void draw(Document doc, IOSink out) {
-    for (var c in children) {
-      c.draw(doc, out);
-    }
-  }
-}
-
-/// this widget show all its children on the same rows
+/// A Widget that shows all its children on the same rows
 class Paragraph extends _MultipleChildrenWidget {
   final String? _style;
   final Align? _align;
 
-  Paragraph({required super.children, String? style, Align? align})
+  Paragraph(
+      {required super.children,
+
+      /// one of the Document styles
+      String? style,
+
+      /// paragraph Alignment
+      Align? align})
       : _style = style,
         _align = align;
   @override
@@ -631,10 +604,12 @@ class Paragraph extends _MultipleChildrenWidget {
   }
 }
 
-/// this widget that show its children in one or more columns
+/// A widget that shows its children in one or more columns
 class Section extends Column {
   final int _nCols;
   final int _spCol;
+
+  /// [spCol] is the space between columns
   Section(this._nCols, {required super.children, int? spCol})
       : _spCol = spCol ?? 36;
   @override
@@ -647,7 +622,7 @@ class Section extends Column {
   }
 }
 
-/// a Widget to show a Text with its style
+/// A Widget to show a Text with its style
 class Text extends Widget {
   final String _txt;
   final TextStyle? _style;
@@ -659,38 +634,51 @@ class Text extends Widget {
     String s = '';
     String e = '';
     String cf = '';
+    String fs = '';
     if (_style != null) {
       if (_style._font != null) doc._setFont(_style._font);
+      if (_style._fontSize != null) {
+        fs = '\\fs${(2 * _style._fontSize).floor()}';
+      }
       s = _style._variations.map((s) => s._start).join();
       e = _style._variations.map((s) => s._end).join();
       if (_style._color != null) cf = '\\cf${_style._color.index + 1}';
     }
-    out.write('$s$cf{${_style?._align?._al ?? ''}${doc._text(_txt)}}$e');
+    out.write('$s$fs$cf{${doc._text(_txt)}}$e');
   }
 }
 
-/// Widget to show an Image
+/// A Widget to show an Image
 class Image extends Widget {
-  /// [_data] contains the image data
   final ByteData _data;
+  final int _dpi;
+  final bool _share;
+  final int? _width;
+  final int? _height;
+  Image(
 
-  /// dot per inch
-  final int dpi;
+      /// [_data] contains the image data
+      this._data,
+      {
+      /// dot per inch
+      int dpi = 72,
 
-  /// Share image, default is true
-  final bool share;
+      /// Share image, default is true
+      bool share = true,
 
-  /// image's width
-  final int? width;
+      /// image's width
+      int? width,
 
-  /// image's height
-  final int? height;
-  Image(this._data,
-      {this.dpi = 72, this.share = true, this.width, this.height});
+      /// image's height
+      int? height})
+      : _dpi = dpi,
+        _share = share,
+        _width = width,
+        _height = height;
   @override
   void draw(Document doc, IOSink out) {
     doc._newWidget();
-    doc._insertImage(_data, dpi, share, width, height);
+    doc._insertImage(_data, _dpi, _share, _width, _height);
   }
 }
 
@@ -713,6 +701,8 @@ class Line extends Widget {
 /// A widget to show a List
 class Listing extends Widget {
   final List<Widget> _elements;
+
+  /// if true, a numbered list will be shown
   final bool _numbered;
   Listing(this._elements, this._numbered);
   @override

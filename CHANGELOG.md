@@ -21,8 +21,14 @@
 
 ## 0.0.5
 
-* Added FontFamily enum and introduced Document.addStyle()
+* Added FontFamily enum and introduced Document.styles
 * Deprecated Row widget, substituting it with Paragraph
 * Added StyleVariation (italic, bold, etc.)
 * In TextStyle, deprecated align, style field and added font, variations and color
 * Added new example
+
+## 0.1.0
+
+* Removed deprecated methods and classes
+* Added fontSize to TextStyle
+* Added double underline StyleVariation
