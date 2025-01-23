@@ -1,6 +1,6 @@
 name: rtf
 description: A library to build an RTF document. RTF (Rich Text Format) is a document format that most word processors are able to read and write.
-version: 0.0.5
+version: 0.1.0
 homepage: https://github.com/micruo/rtf
 
 environment:
